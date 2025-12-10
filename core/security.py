@@ -69,4 +69,3 @@ def token_validation(request):
         detail="Token inválido ou expirado",
         headers={"WWW-Authenticate": "Bearer"},
         )
-    
