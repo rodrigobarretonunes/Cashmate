@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from .auth_schemas import UserCreate, UserLogin, UserRead
 from .auth_crud import create_user, login_user, verify_if_user_exists
 from .auth_utils import get_current_user
@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException
 from core.database import get_db 
 from core.security import get_password_hash
+from api.share import get_pending_shared_transactions
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -25,9 +27,14 @@ async def register_user(user:UserCreate, db: Session=Depends(get_db)):
     return new_user
 
 
-# Endpoint to login a user 
 @router.post("/login")
-async def login_user_endpoint(user:UserLogin, db: Session=Depends(get_db)):
-    token = await login_user(db,user)
-    return {"access_token": token, "token_type": "bearer"}
+async def login_user_endpoint(
+    user: UserLogin,
+    db: Session = Depends(get_db)
+):
+    token = await login_user(db, user)
 
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }

@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import Optional        
 from datetime import datetime 
+from api.share.share_schemas import InviteSharedTransactionRead
+from typing import List
 
 
 
@@ -45,7 +47,7 @@ class TransactionDetailsRead(BaseModel):
     end_date : Optional [datetime]
     is_shared : bool
     owner_id : int
-    owner_amount : float
+    owner_amount :Optional [float]
     counterparty_username : Optional [str]
     counterparty_amount : Optional[float]
     expiration_time : Optional[datetime]
@@ -54,3 +56,11 @@ class TransactionDetailsRead(BaseModel):
 
 
 
+class DeleteTransactions(BaseModel):
+    transaction_ids: list[int]
+
+
+
+class DashboardResponse(BaseModel):
+    pending_invites: List[InviteSharedTransactionRead]
+    transactions: list[TransactionDetailsRead]

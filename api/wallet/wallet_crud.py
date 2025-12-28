@@ -1,22 +1,26 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from .wallet_models import TransactionDetail
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from datetime import datetime, timezone,timedelta
 import traceback
+from api.auth import get_current_user
 
 
-async def query_all_transactions(db: Session):
+
+async def query_all_transactions(request:Request, db: Session ):
     try:
-        stmt = select(TransactionDetail)
+        current_user = get_current_user(request,db)
+        stmt = select(TransactionDetail).where(TransactionDetail.owner_id == current_user.id)
         user_transactions = db.execute(stmt).scalars().all()
         return user_transactions
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-async def query_transaction_by_id(db: Session, transaction_id: int):
+async def query_transaction_by_id(db: Session, transaction_id: int,request:Request):
     try:
-        stmt = select(TransactionDetail).where(TransactionDetail.id == transaction_id)
+        current_user= get_current_user(request,db)
+        stmt = select(TransactionDetail).where(TransactionDetail.owner_id == current_user.user_id).where(id==transaction_id)
         selected_transaction = db.execute(stmt).scalars().first()
         return selected_transaction
     except Exception as e:
@@ -63,27 +67,52 @@ async def update_transaction(db:Session, db_transaction:TransactionDetail, updat
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)+"Something went wrong when editing transaction")
 
-async def delete_transaction(db:Session, transaction_id:int):
+async def delete_transaction(db:Session, transactions_ids:list[int], request:Request):
     try:
-        selected_transaction = query_transaction_by_id(db,transaction_id)
+        current_user = get_current_user(request,db)
+        stmt = select(TransactionDetail).where(TransactionDetail.owner_id == current_user.id, TransactionDetail.id.in_(transactions_ids))
+        selected_transaction = db.execute(stmt).scalars().all()
         if not selected_transaction:
-            raise HTTPException(status_code=404, detail="Transaction not found")
-        db.delete(selected_transaction)
+            raise HTTPException(status_code=404, detail="Transactions not found")
+        for t in selected_transaction:
+            db.delete(t)
         db.commit()
         return {"detail":"Transaction deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)+"Something went wrong when deleting transaction")
 
-
-async def transaction_validation(new_transaction):
-    try: 
+async def transaction_validation(new_transaction, request=None, db=None):
+    try:
+        # Se não for compartilhada, só define owner_amount e counterparty_amount
         if not new_transaction.is_shared:
             new_transaction.owner_amount = new_transaction.total_amount
+            new_transaction.counterparty_amount = 0
+            new_transaction.counterparty_username = None
             return new_transaction
+        if request and db:
+            current_user = get_current_user(request, db)
+            print (current_user.username)
+            if current_user.username == new_transaction.counterparty_username:
+                raise HTTPException(
+                    status_code=422,
+                    detail="You cannot create a shared transaction with yourself."
+                )
+        # Somatório deve bater com total
         if new_transaction.owner_amount + new_transaction.counterparty_amount != new_transaction.total_amount:
-            raise HTTPException(status_code=422,detail="The sum of the parts does not match the total provided.")
+            raise HTTPException(
+                status_code=422,
+                detail="The sum of owner and counterparty amounts does not match the total provided."
+            )
+
+        # **Bloqueio de transação compartilhada consigo mesmo**
+        
+
         return new_transaction
+
+    except HTTPException:
+        raise  # Re-raise exceptions já levantadas
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)+"Something went wrong with amount validation") 
-
-
+        raise HTTPException(
+            status_code=500,
+            detail=str(e) + " Something went wrong with transaction validation."
+        )
