@@ -1,3 +1,5 @@
+import os
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.auth import auth_routes
@@ -9,19 +11,23 @@ init_db()
 
 # Configuração de CORS
 origins = [
-    "http://localhost:5173",  # endereço do seu frontend Vite
+    "http://localhost:5173",
     "http://127.0.0.1:5173"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,      # quem pode acessar
-    allow_credentials=True,     # cookies/autenticação
-    allow_methods=["*"],        # permite GET, POST, OPTIONS...
-    allow_headers=["*"],        # permite qualquer header
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Inclui as rotas de autenticação
+# Rotas
 app.include_router(auth_routes.router)
 app.include_router(wallet_routes.router)
 
+# === Apenas para Railway ===
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))  # Railway define a porta via variável de ambiente
+    uvicorn.run(app, host="0.0.0.0", port=port)
